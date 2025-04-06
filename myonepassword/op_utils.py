@@ -7,6 +7,35 @@ import subprocess
 import argparse
 from typing import Optional, Dict
 
+def is_signed_in_to_1password() -> bool:
+    """
+    Check if the user is signed in to the 1Password CLI.
+    
+    Returns:
+        bool: True if the user is signed in, False otherwise
+    """
+    try:
+        subprocess.run(['op', 'account', 'list'], capture_output=True, check=True)
+        return True
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return False
+
+def sign_in_to_1password() -> None:
+    """
+    Prompt the user to sign in to the 1Password CLI.
+    
+    Raises:
+        ValueError: If the sign-in process fails
+    """
+    try:
+        print("You are not signed in to the 1Password CLI.")
+        print("Please run the following command to sign in:")
+        print("op signin")
+        print("After signing in, try running this script again.")
+        exit(1)
+    except Exception as e:
+        raise ValueError(f"Failed to sign in to 1Password CLI: {str(e)}")
+
 def get_credential_by_username(username: Optional[str] = None, credential_name: Optional[str] = None, vault: Optional[str] = None) -> Dict[str, str]:
     """
     Retrieve 1Password credentials by username or credential name using the local 1Password CLI.
@@ -31,6 +60,10 @@ def get_credential_by_username(username: Optional[str] = None, credential_name: 
         subprocess.run(['op', '--version'], capture_output=True, check=True)
     except (subprocess.SubprocessError, FileNotFoundError):
         raise ValueError("1Password CLI (op) is not installed or not in PATH")
+    
+    # Check if the user is signed in to the 1Password CLI
+    if not is_signed_in_to_1password():
+        sign_in_to_1password()
     
     # Build the search command
     if credential_name:
@@ -75,13 +108,13 @@ def get_credential_by_username(username: Optional[str] = None, credential_name: 
                 credentials['credential'] = field.get('value', '')
         
         if not credentials['username'] or not credentials['credential']:
-            raise ValueError(f"Username or password not found in the credential item")
+            raise ValueError(f"Username or credential not found in the credential item")
         
         return credentials
     
     except subprocess.CalledProcessError as e:
         if e.returncode == 1 and "not signed in" in e.stderr:
-            raise ValueError("Not signed in to 1Password CLI. Please run 'op signin' first.")
+            sign_in_to_1password()
         raise ValueError(f"1Password CLI error: {e.stderr}")
     except json.JSONDecodeError:
         raise ValueError("Failed to parse 1Password CLI output")
